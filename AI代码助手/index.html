@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI 代码助手</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    header {
+      width: 100%;
+      padding: 18px 0;
+      text-align: center;
+      background: #1e293b;
+      border-bottom: 1px solid #334155;
+    }
+    header h1 { margin: 0; font-size: 20px; color: #38bdf8; }
+    header p { margin: 6px 0 0; font-size: 13px; color: #94a3b8; }
+    .container {
+      width: 100%;
+      max-width: 820px;
+      padding: 20px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+    .controls { display: flex; gap: 10px; align-items: center; }
+    select, button, textarea {
+      font-family: inherit;
+      font-size: 14px;
+    }
+    select {
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      background: #1e293b;
+      color: #e2e8f0;
+    }
+    textarea {
+      width: 100%;
+      min-height: 110px;
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid #334155;
+      background: #1e293b;
+      color: #e2e8f0;
+      resize: vertical;
+      line-height: 1.5;
+    }
+    textarea:focus, select:focus { outline: 2px solid #38bdf8; }
+    .btn {
+      padding: 10px 22px;
+      border: none;
+      border-radius: 8px;
+      background: #38bdf8;
+      color: #0f172a;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity .2s;
+    }
+    .btn:hover { opacity: .85; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .output-wrap {
+      position: relative;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 14px;
+      min-height: 160px;
+    }
+    .output-wrap pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      line-height: 1.6;
+      font-size: 13.5px;
+    }
+    .copy-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      padding: 5px 12px;
+      font-size: 12px;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      background: #0f172a;
+      color: #94a3b8;
+      cursor: pointer;
+    }
+    .copy-btn:hover { color: #38bdf8; border-color: #38bdf8; }
+    .status { font-size: 12px; color: #94a3b8; min-height: 16px; }
+    .error { color: #f87171 !important; }
+    footer { padding: 14px; font-size: 12px; color: #64748b; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>AI 代码助手</h1>
+    <p>用自然语言描述需求，调用 Qwen 大模型生成代码</p>
+  </header>
+
+  <div class="container">
+    <div class="controls">
+      <label for="lang">语言：</label>
+      <select id="lang">
+        <option>Python</option>
+        <option>JavaScript</option>
+        <option>Java</option>
+        <option>C++</option>
+        <option>HTML/CSS</option>
+        <option>SQL</option>
+      </select>
+      <button class="btn" id="sendBtn">生成代码</button>
+    </div>
+
+    <textarea id="prompt" placeholder="例如：用 Python 写一个快速排序函数，并加注释说明思路"></textarea>
+
+    <div class="status" id="status"></div>
+
+    <div class="output-wrap">
+      <button class="copy-btn" id="copyBtn">复制</button>
+      <pre id="output">// 生成结果会显示在这里</pre>
+    </div>
+  </div>
+
+  <footer>本地运行 · 密钥通过环境变量注入 · 仅用于编程相关请求</footer>
+
+  <script>
+    const sendBtn = document.getElementById("sendBtn");
+    const copyBtn = document.getElementById("copyBtn");
+    const promptEl = document.getElementById("prompt");
+    const langEl = document.getElementById("lang");
+    const outputEl = document.getElementById("output");
+    const statusEl = document.getElementById("status");
+
+    sendBtn.addEventListener("click", async () => {
+      const prompt = promptEl.value.trim();
+      const language = langEl.value;
+      if (!prompt) {
+        statusEl.textContent = "请先输入需求描述";
+        statusEl.className = "status error";
+        return;
+      }
+      sendBtn.disabled = true;
+      statusEl.textContent = "生成中…";
+      statusEl.className = "status";
+      outputEl.textContent = "";
+
+      try {
+        const resp = await fetch("/api/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt, language }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+          statusEl.textContent = data.error || "请求失败";
+          statusEl.className = "status error";
+        } else {
+          outputEl.textContent = data.result;
+          statusEl.textContent = "生成完成";
+          statusEl.className = "status";
+        }
+      } catch (e) {
+        statusEl.textContent = "网络错误：" + e.message;
+        statusEl.className = "status error";
+      } finally {
+        sendBtn.disabled = false;
+      }
+    });
+
+    copyBtn.addEventListener("click", () => {
+      navigator.clipboard.writeText(outputEl.textContent).then(() => {
+        copyBtn.textContent = "已复制";
+        setTimeout(() => (copyBtn.textContent = "复制"), 1500);
+      });
+    });
+  </script>
+</body>
+</html>
